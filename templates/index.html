@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora Lyricora</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: rgba(0, 0, 0, 0.7); /* Transparent dark background */
+            color: #fff; /* White text color */
+            padding: 20px; /* Add some padding for readability */
+        }
+
+        .container {
+            background-color: rgba(0, 0, 0, 0.8); /* Darker container background */
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        h1 {
+            color: #fff; /* White heading text color */
+        }
+
+        .form-control {
+            background-color: rgba(255, 255, 255, 0.1); /* Slightly transparent input background */
+            color: #fff; /* White input text color */
+        }
+
+        .form-control-file {
+            background-color: rgba(255, 255, 255, 0.1); /* Slightly transparent file input background */
+            color: #fff; /* White file input text color */
+        }
+
+        .btn {
+            background-color: #007bff; /* Blue button background */
+            color: #fff; /* White button text color */
+        }
+
+        .btn-secondary {
+            background-color: #6c757d; /* Gray button background */
+            color: #fff; /* White button text color */
+        }
+
+        .btn-success {
+            background-color: #28a745; /* Green button background */
+            color: #fff; /* White button text color */
+        }
+
+        .alert-info {
+            background-color: rgba(0, 123, 255, 0.8); /* Blue alert background */
+            color: #fff; /* White alert text color */
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Aurora Lyricora</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert alert-info">
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Existing file upload form -->
+        <form id="upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="file" class="form-control-file" accept=".mp3, .wav" required>
+            </div>
+
+            <!-- Select mastering quality -->
+            <div class="form-group">
+                <label for="quality">Select Mastering Quality:</label>
+                <select id="quality" name="quality" class="form-control" required>
+                    <option value="Warm">Warm</option>
+                    <option value="Bright">Bright</option>
+                    <option value="Aggressive">Aggressive</option>
+                    <option value="Punchy">Punchy</option>
+                    <option value="Wide">Wide</option>
+                    <option value="Open">Open</option>
+                    <option value="Balanced">Balanced</option>
+                </select>
+            </div>
+
+            <!-- Hidden input for filename -->
+            <input type="hidden" name="filename" id="uploaded-filename">
+            
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+
+        <!-- Progress messages -->
+        <div id="progress-messages" class="mt-3">
+            <!-- Messages will appear here -->
+        </div>
+
+        <!-- Comparison buttons (hidden by default) -->
+        <div id="comparison-buttons" class="mt-3" style="display: none;">
+            <button id="play-original" class="btn btn-primary">Play Original</button>
+            <button id="play-mastered" class="btn btn-primary">Play Mastered</button>
+            <button id="pause" class="btn btn-secondary">Pause</button>
+        </div>
+
+        <!-- Button to download the mastered audio (hidden initially) -->
+        <div id="download-button" class="mt-3" style="display: none;">
+            <a id="download-mastered-audio" class="btn btn-success" href="{{ url_for('download_file', filename='') }}" download>Download Mastered Audio</a>
+        </div>
+    </div>
+
+    <!-- JavaScript for progress messages and comparison -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        var originalAudio; // Variable to store the original audio element
+        var masteredAudio; // Variable to store the mastered audio element
+        var isPlayingOriginal = false; // Variable to track playback state of original audio
+        var isPlayingMastered = false; // Variable to track playback state of mastered audio
+
+        // Function to load the original audio
+        function loadOriginalAudio(url) {
+            originalAudio = new Audio(url);
+            originalAudio.addEventListener('ended', function () {
+                isPlayingOriginal = false;
+            });
+        }
+
+        // Function to load the mastered audio
+        function loadMasteredAudio(url) {
+            masteredAudio = new Audio(url);
+            masteredAudio.addEventListener('ended', function () {
+                isPlayingMastered = false;
+            });
+        }
+        // At the end of your JavaScript code, after defining loadMasteredAudio
+        document.addEventListener('DOMContentLoaded', function () {
+            loadMasteredAudio("{{ url_for('play_mastered', filename=output_filename) }}");
+            masteredAudio.play();
+        });
+        // Function to show the download button when audio is mastered
+        function showDownloadButton(filename) {
+            document.getElementById('download-mastered-audio').href = "{{ url_for('download_file', filename='') }}/" + filename;
+            document.getElementById('download-button').style.display = 'block';
+        }
+
+        // Function to hide the download button
+        function hideDownloadButton() {
+            document.getElementById('download-button').style.display = 'none';
+        }
+
+        $(document).ready(function () {
+            // Initially, hide the download button and comparison buttons
+            hideDownloadButton();
+            $('#comparison-buttons').hide();
+
+            // Handle audio comparison for the "Play Original" button
+            $('#play-original').click(function () {
+                if (!isPlayingOriginal) {
+                    $(this).addClass('playing');
+                    originalAudio.play();
+                    isPlayingOriginal = true;
+                } else {
+                    $(this).removeClass('playing');
+                    originalAudio.pause();
+                    isPlayingOriginal = false;
+                }
+            });
+
+            // Handle audio comparison for the "Play Mastered" button
+            $('#play-mastered').click(function () {
+                if (!isPlayingMastered) {
+                    $(this).addClass('playing');
+                    masteredAudio.play();
+                    isPlayingMastered = true;
+                } else {
+                    $(this).removeClass('playing');
+                    masteredAudio.pause();
+                    isPlayingMastered = false;
+                }
+            });
+
+            // Use the "Pause" button to pause both original and mastered audio
+            $('#pause').click(function () {
+                if (isPlayingOriginal || isPlayingMastered) {
+                    $('#play-original, #play-mastered').removeClass('playing');
+                    originalAudio.pause();
+                    masteredAudio.pause();
+                    isPlayingOriginal = false;
+                    isPlayingMastered = false;
+                }
+            });
+        });
+
+        // Function to update progress messages
+        function updateProgressMessage(message) {
+            $('#progress-messages').html('<p>' + message + '</p>');
+        }
+
+        $('#upload-form').on('submit', function (e) {
+            e.preventDefault(); // Prevent the form from submitting in the traditional way
+            var formData = new FormData(this);
+
+            // Display an upload message
+            updateProgressMessage('Uploading and mastering audio...');
+
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                success: function (data) {
+                    // The audio is mastered, hide upload message
+                    updateProgressMessage('');
+
+                    // Show comparison buttons
+                    $('#comparison-buttons').show();
+
+                    // Load the mastered audio
+                    loadMasteredAudio("{{ url_for('play_mastered', filename='') }}/" + data.filename);
+                    loadOriginalAudio("{{ url_for('play_original', filename='') }}/" + data.filename);
+
+                    // Show the download button
+                    showDownloadButton(data.filename);
+                },
+                error: function (error) {
+                    // Handle errors here
+                    updateProgressMessage('Error uploading and mastering the file.');
+                }
+            });
+        });
+
+        // Function to reset progress messages on page load
+        $(window).on('load', function () {
+            updateProgressMessage('');
+        });
+    </script>
+
+</body>
+</html>
