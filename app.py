@@ -14,6 +14,15 @@ app.config.from_object("config")
 # Initialize the audio processor
 audio_processor = AudioProcessor(app.config["UPLOAD_FOLDER"], app.config["OUTPUT_FOLDER"])
 
+def handle_db_error(error):
+    flash("Database error: {}".format(error), "error")
+
+def handle_upload_error(error):
+    flash("Upload error: {}".format(error), "error")
+
+def handle_processing_error(error):
+    flash("Processing error: {}".format(error), "error")
+
 @app.route('/')
 def index():
     try:
@@ -32,24 +41,23 @@ def index():
         reviews = [Review(content=review[1], author=review[0], timestamp=review[2]) for review in reviews_data]
 
         return render_template('index.html', reviews=reviews)
-    except Exception as e:
-        flash(str(e), 'error')
+    except sqlite3.Error as e:
+        handle_db_error(e)
         return render_template('index.html', reviews=[])
-
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
     file = request.files.get('file')
 
     if not file:
-        flash('No file uploaded', 'error')
+        handle_upload_error('No file uploaded')
         return jsonify({'error': 'No file uploaded'})
 
     if audio_processor.is_allowed_file(file.filename):
         try:
             # Inform the user that the upload process has started
             flash('Uploading...', 'info')
-            
+
             output_filename = audio_processor.process_audio(file, request.form.get('quality'), request.form.get('audio_type'))
 
             # Inform the user that the mastering process has started
@@ -59,11 +67,10 @@ def upload_file():
             flash('Mastering completed', 'info')
             return redirect(url_for('play_mastered', filename=output_filename))
         except Exception as e:
-            flash(str(e), 'error')
+            handle_processing_error(e)
             return jsonify({'success': False, 'error': str(e)})
-
     else:
-        flash('Invalid file format', 'error')
+        handle_upload_error('Invalid file format')
         return jsonify({'error': 'Invalid file format'})
 
 @app.route('/submit_review', methods=['POST'])
@@ -92,17 +99,15 @@ def submit_review():
             'content': content,
             'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S')
         })
-    except Exception as e:
-        flash(str(e), 'error')
+    except sqlite3.Error as e:
+        handle_db_error(e)
         return jsonify({'success': False, 'error': str(e)})
-        
+
 @app.route('/check_mastering_status', methods=['GET'])
 def check_mastering_status():
     # Implement logic to check mastering status
     mastering_completed = True  # Replace with your actual logic
     return jsonify({'mastering_completed': mastering_completed})
-
-
 
 @app.route('/download/<format>/<filename>')
 def download_audio(format, filename):
@@ -111,6 +116,7 @@ def download_audio(format, filename):
     elif format == 'wav':
         return audio_processor.download_file(filename, format='wav')
     else:
+        flash('Invalid format', 'error')
         return "Invalid format", 400
 
 @app.route('/play_original/<filename>')
