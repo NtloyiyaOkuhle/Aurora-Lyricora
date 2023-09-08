@@ -36,38 +36,35 @@ class AudioProcessor:
 
             # Apply high-pass filter on side image (make low frequencies mono)
             audio = self.apply_high_pass_filter(audio, cutoff_freq=130)
-
-            # Inform the user that the first step of mastering is done
             flash('High-pass filter applied', 'info')
 
             # Use two limiters in series
             audio = self.apply_limiter(audio, release_time=30)  # First limiter
-
-            # Inform the user that the second step of mastering is done
             flash('First limiter applied', 'info')
 
             audio = self.apply_limiter(audio, release_time=100)  # Second limiter
-
-            # Inform the user that the third step of mastering is done
             flash('Second limiter applied', 'info')
 
             # Apply multi-band expander
             audio = self.apply_multiband_expander(audio)
-
-            # Inform the user that the multi-band expander is applied
             flash('Multi-band expander applied', 'info')
 
-            # Export audio in a lossless format (WAV)
+            # Export audio in a lossless format (WAV) with high-quality settings
             output_filename = f"mastered_{quality}_{audio_type}_{filename}"
             output_filepath = os.path.join(self.output_folder, output_filename)
-            audio.export(output_filepath, format="wav")
-            # Inform the user that the mastering process has completed
+
+            # Use 24-bit export for higher quality
+            audio.export(output_filepath, format="wav", parameters=["-b:a", "24k"])
             flash('Mastering completed', 'info')
 
             # Set the mastering_completed flag to True
             mastering_completed = True
 
             return output_filename, mastering_completed
+
+        except Exception as e:
+            flash(f'Error processing audio: {str(e)}', 'error')
+            return None, False
 
         except Exception as e:
             flash(f'Error processing audio: {str(e)}', 'error')
@@ -165,6 +162,59 @@ class AudioProcessor:
 
         except Exception as e:
             flash(f'Error applying multi-band expander: {str(e)}', 'error')
+            return audio
+
+    def eq_match_advanced(self, audio, reference_track):
+        try:
+            # Load the reference track
+            reference_audio = AudioSegment.from_file(reference_track)
+
+            # Convert both audio tracks to numpy arrays for spectral analysis
+            audio_np = np.array(audio.get_array_of_samples())
+            reference_np = np.array(reference_audio.get_array_of_samples())
+
+            # Calculate the spectral envelope of both tracks
+            audio_envelope = pyo.FFT(audio_np).abs().smooth(0.01)
+            reference_envelope = pyo.FFT(reference_np).abs().smooth(0.01)
+
+            # Apply EQ matching by equalizing the audio based on the reference envelope
+            matched_audio = audio.apply_gain(reference_envelope / audio_envelope)
+
+            return matched_audio
+
+        except Exception as e:
+            flash(f'Error applying advanced EQ matching: {str(e)}', 'error')
+            return audio
+
+    def advanced_parallel_compression(self, audio, compression_ratio=4.0, blend_factor=0.5):
+        try:
+            # Create a compressor with customizable settings
+            compressor = pyo.Compressor(threshold=-18, ratio=compression_ratio, attack=0.01, release=0.1)
+
+            # Apply heavy compression
+            compressed_audio = compressor(audio)
+
+            # Blend the compressed audio with the original
+            blended_audio = (audio * (1 - blend_factor)) + (compressed_audio * blend_factor)
+
+            return blended_audio
+
+        except Exception as e:
+            flash(f'Error applying advanced parallel compression: {str(e)}', 'error')
+            return audio
+
+    def advanced_adjust_limiter_release(self, audio, release_time_ms):
+        try:
+            # Convert release_time_ms to time in seconds
+            release_time_sec = release_time_ms / 1000.0
+
+            # Apply precise release time adjustment
+            audio = audio.fade_out(release_time_sec)
+
+            return audio
+
+        except Exception as e:
+            flash(f'Error applying advanced limiter release adjustment: {str(e)}', 'error')
             return audio
 
 app = Flask(__name__)
